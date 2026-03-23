@@ -1,0 +1,65 @@
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: telephony-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: telephony_db
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./postgres/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - telephony-network
+
+  mock-server:
+    build: 
+      context: ./mock-server
+    container_name: telephony-mock-server
+    restart: unless-stopped
+    ports:
+      - "8001:8001"
+    networks:
+      - telephony-network
+
+  proxy-gateway:
+    build:
+      context: ./proxy-gateway
+    container_name: telephony-proxy-gateway
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "8000:8000"
+    networks:
+      - telephony-network
+
+  superset:
+    build: 
+      context: ./superset
+    container_name: telephony-superset
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "8088:8088"
+    networks:
+      - telephony-network
+
+volumes:
+  postgres_data:
+    driver: local
+
+networks:
+  telephony-network:
+    driver: bridge
